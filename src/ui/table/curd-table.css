@@ -1,10 +1,6 @@
-*{
-  margin: 0;
-  padding: 0;
-}
 .new-row-action {
   display: flex;
-  justify-content: end;
+  justify-content: flex-end;
   align-items: center;
 }
 .page-wrp {
@@ -17,5 +13,5 @@
 .table-action-wrp {
   display: flex;
   gap: 25px;
-  justify-content: end;
+  justify-content: flex-end;
 }

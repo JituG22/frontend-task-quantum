@@ -1,12 +1,11 @@
-import React from 'react';
-import './App.css';
+import React from "react";
+import CurdTable from "./ui/table/curd-table";
 
-function App() {
+const App: React.FC = () => {
   return (
-    <div className="App">
-      React table curd app
+    <div className="page-wrp">
+      <CurdTable />
     </div>
   );
-}
-
+};
 export default App;
