@@ -1,23 +1,13 @@
-import React, { useState } from "react";
-import Snackbar from "@mui/material/Snackbar";
-import { AlertColor } from "@mui/material/Alert";
-import Alert from "@mui/material/Alert";
-import AddIcon from "@mui/icons-material/Add";
-import { useFormik } from "formik";
-import * as Yup from "yup";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
+import React, { useState, useEffect } from "react";
 import {
-  boldStyle,
-  cellStyle,
-  textFildStyle,
-  textFildStyle2,
-} from "../style/style";
-
-import {
+  Snackbar,
+  AlertColor,
+  Alert,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Table,
   TableBody,
   TableCell,
@@ -28,30 +18,39 @@ import {
   Button,
   TextField,
   TablePagination,
+  CircularProgress,
 } from "@mui/material";
-import { UserDataFC } from "../../interface/interface";
-import { initialData } from "../../dummyData/data";
-import CloseIcon from "@mui/icons-material/Close";
-import SaveIcon from "@mui/icons-material/Save";
+
+import AddIcon from "@mui/icons-material/Add";
+import { useFormik } from "formik";
+import userService from "../../api/userService";
+import * as Yup from "yup";
+import { boldStyle, textFieldStyle, textFieldStyle2 } from "../style/style";
+
 import CellTable from "./table-cell";
-import EditTable from "./edite-table";
+import EditTable from "./edit-table";
+import { NewUser, User } from "../../api/models/User";
+import NewRow from "./new-row";
 import "./curd-table.css";
+
 interface SnackbarState {
   open: boolean;
   message: string;
   severity: AlertColor;
 }
-const CurdTable: React.FC = () => {
+const CrudTable: React.FC = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState("");
-  const [addNewRow, setAddNewRow] = useState(false);
-  const [data, setData] = useState<UserDataFC[]>(initialData);
+  const [isAddingNewRow, setIsAddingNewRow] = useState(false);
+
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [openDialog, setOpenDialog] = useState(false);
-  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
-  const [newRow, setNewRow] = useState<UserDataFC>({
-    id: String(Date.now()),
+  const [userDeleteIdx, setUserDeleteIdx] = useState<string | null>(null);
+  const [newRow, setNewRow] = useState<NewUser>({
     firstname: "",
     lastname: "",
     age: "",
@@ -64,7 +63,9 @@ const CurdTable: React.FC = () => {
     severity: "success",
   });
   const handleAdd = () => {
-    setAddNewRow(!addNewRow);
+    setIsAddingNewRow(!isAddingNewRow);
+    stopEditing();
+    formik.resetForm();
   };
 
   const validationSchema = Yup.object({
@@ -83,14 +84,9 @@ const CurdTable: React.FC = () => {
     validationSchema: validationSchema,
     onSubmit: (values) => {
       if (editIdx !== null) {
-        const updatedData = [...data];
-        updatedData[editIdx] = values;
-        setData(updatedData);
         setEditIdx(null);
       } else {
-        setData([...data, { ...values, id: String(Date.now()) }]);
         setNewRow({
-          id: "",
           firstname: "",
           lastname: "",
           age: "",
@@ -102,59 +98,83 @@ const CurdTable: React.FC = () => {
   });
 
   const handleCancelAdd = () => {
-    setAddNewRow(false);
+    setIsAddingNewRow(false);
     formik.resetForm();
   };
-
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const fetchedUsers: User[] = await userService.getAllUsers();
+      setUsers(fetchedUsers.reverse());
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const addNewRowSave = async () => {
     await formik.submitForm();
     const errors = await formik.validateForm();
     if (Object.keys(errors).length === 0) {
-      setData([{ ...formik.values, id: String(Date.now()) }, ...data]);
+      try {
+        const userData: NewUser = { ...formik.values };
+        await userService.addUser(userData);
+        setSnackbar({
+          open: true,
+          message: "Row added successfully!",
+          severity: "success",
+        });
+        fetchUsers();
+      } catch (error) {
+        setSnackbar({
+          open: true,
+          message: `Error adding user:${error}`,
+          severity: "error",
+        });
+      }
       formik.resetForm();
-      setAddNewRow(false);
-      setSnackbar({
-        open: true,
-        message: "Row added successfully!",
-        severity: "success",
-      });
+      setIsAddingNewRow(false);
     } else {
       setSnackbar({
         open: true,
         message: "Error: Form contains invalid data!",
         severity: "error",
       });
-      console.log("Form has errors:", errors);
     }
   };
 
-  const filteredData = data.filter((row) => {
+  const filteredData = users.filter((row) => {
     const searchLower = searchInput.toLowerCase();
     return (
       row.firstname.toLowerCase().includes(searchLower) ||
       row.lastname.toLowerCase().includes(searchLower) ||
-      row.age.toLowerCase().includes(searchLower) ||
+      row.age.toString().includes(searchLower) ||
       row.gender.toLowerCase().includes(searchLower) ||
       row.country.toLowerCase().includes(searchLower)
     );
   });
 
   const startEditing = (index: number) => {
+    handleCancelAdd();
     setEditIdx(index);
-    const row = data[index];
+    const row: NewUser = {
+      firstname: users[index].firstname,
+      lastname: users[index].lastname,
+      age: users[index].age,
+      gender: users[index].gender,
+      country: users[index].country,
+    };
     formik.setValues(row);
   };
 
-  const handleDelete = (index: number) => {
-    setDeleteIndex(index);
+  const handleDelete = (userDeleteId: string) => {
+    setUserDeleteIdx(userDeleteId);
     setOpenDialog(true);
   };
 
-  const confirmDelete = () => {
-    if (deleteIndex !== null) {
-      const newData = [...data];
-      newData.splice(deleteIndex, 1);
-      setData(newData);
+  const confirmDelete = async () => {
+    if (userDeleteIdx !== null) {
+      await userService.deleteUser(userDeleteIdx);
       setSnackbar({
         open: true,
         message: "Row deleted successfully!",
@@ -162,7 +182,8 @@ const CurdTable: React.FC = () => {
       });
     }
     setOpenDialog(false);
-    setDeleteIndex(null);
+    setUserDeleteIdx(null);
+    fetchUsers();
   };
 
   const stopEditing = () => {
@@ -173,9 +194,16 @@ const CurdTable: React.FC = () => {
     await formik.submitForm();
     const errors = await formik.validateForm();
     if (Object.keys(errors).length === 0 && editIdx !== null) {
-      const updatedData = [...data];
-      updatedData[editIdx] = formik.values;
-      setData(updatedData);
+      let updatedUser: NewUser = {
+        firstname: "",
+        lastname: "",
+        age: "",
+        gender: "",
+        country: "",
+      };
+      updatedUser = formik.values;
+      await userService.updateUser(users[editIdx]._id, updatedUser);
+      fetchUsers();
       setEditIdx(null);
       setSnackbar({
         open: true,
@@ -203,6 +231,10 @@ const CurdTable: React.FC = () => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   return (
     <div>
@@ -252,8 +284,8 @@ const CurdTable: React.FC = () => {
         <div>
           <TextField
             value={searchInput}
-            InputProps={textFildStyle}
-            InputLabelProps={textFildStyle2}
+            InputProps={textFieldStyle}
+            InputLabelProps={textFieldStyle2}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search"
           />
@@ -273,87 +305,17 @@ const CurdTable: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {addNewRow && (
-              <TableRow>
-                <TableCell style={cellStyle}>
-                  <TextField
-                    name="firstname"
-                    value={formik.values.firstname}
-                    onChange={formik.handleChange}
-                    error={
-                      formik.touched.firstname &&
-                      Boolean(formik.errors.firstname)
-                    }
-                    helperText={
-                      formik.touched.firstname && formik.errors.firstname
-                    }
-                    InputProps={textFildStyle}
-                    InputLabelProps={textFildStyle2}
-                  />
-                </TableCell>
-                <TableCell style={cellStyle}>
-                  <TextField
-                    name="lastname"
-                    value={formik.values.lastname}
-                    onChange={formik.handleChange}
-                    error={
-                      formik.touched.lastname && Boolean(formik.errors.lastname)
-                    }
-                    helperText={
-                      formik.touched.lastname && formik.errors.lastname
-                    }
-                    InputProps={textFildStyle}
-                    InputLabelProps={textFildStyle2}
-                  />
-                </TableCell>
-                <TableCell style={cellStyle}>
-                  <TextField
-                    name="age"
-                    value={formik.values.age}
-                    onChange={formik.handleChange}
-                    error={
-                      formik.touched.lastname && Boolean(formik.errors.age)
-                    }
-                    helperText={formik.touched.age && formik.errors.age}
-                    InputProps={textFildStyle}
-                    InputLabelProps={textFildStyle2}
-                  />
-                </TableCell>
-                <TableCell style={cellStyle}>
-                  <TextField
-                    name="gender"
-                    value={formik.values.gender}
-                    onChange={formik.handleChange}
-                    error={
-                      formik.touched.gender && Boolean(formik.errors.gender)
-                    }
-                    helperText={formik.touched.gender && formik.errors.gender}
-                    InputProps={textFildStyle}
-                    InputLabelProps={textFildStyle2}
-                  />
-                </TableCell>
-                <TableCell style={cellStyle}>
-                  <TextField
-                    name="country"
-                    value={formik.values.country}
-                    onChange={formik.handleChange}
-                    error={
-                      formik.touched.country && Boolean(formik.errors.country)
-                    }
-                    helperText={formik.touched.country && formik.errors.country}
-                    InputProps={textFildStyle}
-                    InputLabelProps={textFildStyle2}
-                  />
-                </TableCell>
-                <TableCell style={cellStyle}>
-                  <Button onClick={() => handleCancelAdd()}>
-                    <CloseIcon />
-                  </Button>
-                  <Button onClick={addNewRowSave}>
-                    <SaveIcon />
-                  </Button>
-                </TableCell>
-              </TableRow>
+            {isLoading && <CircularProgress />}
+            {isAddingNewRow && (
+              <NewRow
+                formik={formik}
+                handleCancelAdd={handleCancelAdd}
+                addNewRowSave={addNewRowSave}
+              />
+            )}
+
+            {filteredData.length === 0 && !isAddingNewRow && (
+              <div className="no-data">Please add a user</div>
             )}
 
             {filteredData
@@ -361,7 +323,7 @@ const CurdTable: React.FC = () => {
               .map((row, index) => (
                 <>
                   {editIdx !== index ? (
-                    <TableRow key={row.id}>
+                    <TableRow key={row._id}>
                       <CellTable
                         row={row}
                         index={index}
@@ -372,14 +334,8 @@ const CurdTable: React.FC = () => {
                   ) : (
                     <TableRow key="edit-row">
                       <EditTable
-                        newRow={newRow}
-                        editIdx={editIdx}
-                        data={data}
-                        setData={setData}
-                        setEditIdx={setEditIdx}
                         stopEditing={stopEditing}
                         handleSaveEdit={handleSaveEdit}
-                        setNewRow={setNewRow}
                         formik={formik}
                       />
                     </TableRow>
@@ -392,7 +348,7 @@ const CurdTable: React.FC = () => {
 
       <TablePagination
         component="div"
-        count={data.length}
+        count={users.length}
         rowsPerPage={rowsPerPage}
         page={page}
         onPageChange={handleChangePage}
@@ -403,4 +359,4 @@ const CurdTable: React.FC = () => {
   );
 };
 
-export default CurdTable;
+export default CrudTable;

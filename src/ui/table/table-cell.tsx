@@ -1,13 +1,13 @@
 import { Button, TableCell } from "@mui/material";
-import { UserDataFC } from "../../interface/interface";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { User } from "../../api/models/User";
 
 interface Props {
-  row: UserDataFC;
+  row: User;
   index: number;
   startEditing: (index: number) => void;
-  handleDelete: (index: number) => void;
+  handleDelete: (_id: string) => void;
 }
 
 const CellTable: React.FC<Props> = ({
@@ -16,18 +16,20 @@ const CellTable: React.FC<Props> = ({
   startEditing,
   handleDelete,
 }) => {
+  const { _id, firstname, lastname, age, gender, country } = row;
+
   return (
     <>
-      <TableCell> {row.firstname} </TableCell>
-      <TableCell> {row.lastname} </TableCell>
-      <TableCell> {row.age} </TableCell>
-      <TableCell> {row.gender} </TableCell>
-      <TableCell> {row.country} </TableCell>
+      <TableCell> {firstname} </TableCell>
+      <TableCell> {lastname} </TableCell>
+      <TableCell> {age} </TableCell>
+      <TableCell> {gender} </TableCell>
+      <TableCell> {country} </TableCell>
       <TableCell>
-        <Button onClick={() => startEditing(index)}>
+        <Button onClick={() => startEditing(index)} aria-label="Edit">
           <EditIcon />
         </Button>
-        <Button onClick={() => handleDelete(index)}>
+        <Button onClick={() => handleDelete(_id)} aria-label="Delete">
           <DeleteIcon />
         </Button>
       </TableCell>
